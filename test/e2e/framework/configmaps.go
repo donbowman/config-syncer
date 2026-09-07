@@ -30,6 +30,7 @@ import (
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	"kmodules.xyz/client-go/tools/clientcmd"
 	"kmodules.xyz/client-go/tools/exec"
@@ -41,7 +42,7 @@ func (fi *Invocation) NewConfigMap() *core.ConfigMap {
 			Name:      fi.App(),
 			Namespace: fi.Namespace(),
 			Labels: map[string]string{
-				"app": fi.App(),
+				AppLabelKey: fi.App(),
 			},
 		},
 		Data: map[string]string{
@@ -71,7 +72,7 @@ func (fi *Invocation) EventuallyNumOfConfigmapsForClient(client kubernetes.Inter
 	return Eventually(func() int {
 		cfgMaps, err := client.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.Set{
-				"app": fi.App(),
+				AppLabelKey: fi.App(),
 			}.String(),
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -87,7 +88,7 @@ func (fi *Invocation) EventuallyConfigMapSynced(source *core.ConfigMap) GomegaAs
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Name {
 					continue
 				}
@@ -135,7 +136,7 @@ func (fi *Invocation) EventuallySyncedConfigMapsUpdated(source *core.ConfigMap) 
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Namespace {
 					continue
 				}
@@ -162,7 +163,7 @@ func (fi *Invocation) EventuallySyncedConfigMapsDeleted(source *core.ConfigMap) 
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Namespace {
 					continue
 				}
@@ -216,7 +217,7 @@ func (fi *Invocation) ReadConfigMapFromRecycleBin(recycleBinLocation string, cm 
 func (fi *Invocation) DeleteAllConfigmaps() {
 	cfgMaps, err := fi.KubeClient.CoreV1().ConfigMaps(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labels.Set{
-			"app": fi.App(),
+			AppLabelKey: fi.App(),
 		}.String(),
 	})
 	Expect(err).NotTo(HaveOccurred())

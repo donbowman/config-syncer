@@ -27,6 +27,7 @@ import (
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	kutil "kmodules.xyz/client-go"
@@ -39,7 +40,7 @@ func (fi *Invocation) NewSecret() *core.Secret {
 			Name:      fi.App(),
 			Namespace: fi.Namespace(),
 			Labels: map[string]string{
-				"app": fi.App(),
+				AppLabelKey: fi.App(),
 			},
 		},
 		StringData: map[string]string{
@@ -70,7 +71,7 @@ func (fi *Invocation) EventuallyNumOfSecretsForClient(client kubernetes.Interfac
 	return Eventually(func() int {
 		secrets, err := client.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.Set{
-				"app": fi.App(),
+				AppLabelKey: fi.App(),
 			}.String(),
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -86,7 +87,7 @@ func (fi *Invocation) EventuallySecretSynced(source *core.Secret) GomegaAsyncAss
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Name {
 					continue
 				}
@@ -134,7 +135,7 @@ func (fi *Invocation) EventuallySyncedSecretsUpdated(source *core.Secret) Gomega
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Namespace {
 					continue
 				}
@@ -160,7 +161,7 @@ func (fi *Invocation) EventuallySyncedSecretsDeleted(source *core.Secret) Gomega
 			namespaces, err := syncer.NamespacesForSelector(fi.KubeClient, *opt.NamespaceSelector)
 			Expect(err).NotTo(HaveOccurred())
 
-			for _, ns := range namespaces.List() {
+			for _, ns := range sets.List(namespaces) {
 				if ns == source.Namespace {
 					continue
 				}
@@ -178,7 +179,7 @@ func (fi *Invocation) EventuallySyncedSecretsDeleted(source *core.Secret) Gomega
 func (fi *Invocation) DeleteAllSecrets() {
 	secrets, err := fi.KubeClient.CoreV1().Secrets(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labels.Set{
-			"app": fi.App(),
+			AppLabelKey: fi.App(),
 		}.String(),
 	})
 	Expect(err).NotTo(HaveOccurred())
@@ -218,8 +219,8 @@ func (fi *Invocation) SecretForWebhookNotifier() *core.Secret {
 }
 
 func (fi *Invocation) WaitUntilSecretCreated(meta metav1.ObjectMeta) error {
-	return wait.PollImmediate(kutil.RetryInterval, kutil.ReadinessTimeout, func() (done bool, err error) {
-		if _, err := fi.KubeClient.CoreV1().Secrets(meta.Namespace).Get(context.TODO(), meta.Name, metav1.GetOptions{}); err != nil {
+	return wait.PollUntilContextTimeout(context.TODO(), kutil.RetryInterval, kutil.ReadinessTimeout, true, func(ctx context.Context) (bool, error) {
+		if _, err := fi.KubeClient.CoreV1().Secrets(meta.Namespace).Get(ctx, meta.Name, metav1.GetOptions{}); err != nil {
 			if kerr.IsNotFound(err) {
 				return false, nil
 			} else {
@@ -231,8 +232,8 @@ func (fi *Invocation) WaitUntilSecretCreated(meta metav1.ObjectMeta) error {
 }
 
 func (fi *Invocation) WaitUntilSecretDeleted(meta metav1.ObjectMeta) error {
-	return wait.PollImmediate(kutil.RetryInterval, kutil.GCTimeout, func() (done bool, err error) {
-		if _, err := fi.KubeClient.CoreV1().Secrets(meta.Namespace).Get(context.TODO(), meta.Name, metav1.GetOptions{}); err != nil {
+	return wait.PollUntilContextTimeout(context.TODO(), kutil.RetryInterval, kutil.GCTimeout, true, func(ctx context.Context) (bool, error) {
+		if _, err := fi.KubeClient.CoreV1().Secrets(meta.Namespace).Get(ctx, meta.Name, metav1.GetOptions{}); err != nil {
 			if kerr.IsNotFound(err) {
 				return true, nil
 			} else {

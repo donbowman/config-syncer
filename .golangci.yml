@@ -1,0 +1,23 @@
+# Configuration for golangci-lint v2 (golang-dev images ship v2.x).
+# Keeps the same effective checks as the historical Makefile invocation:
+#   golangci-lint run --enable goconst,gofmt,goimports,unparam \
+#       --skip-files="generated.*\.go$" --exclude-dirs=client,vendor
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: standard
+  enable:
+    - goconst
+    - unparam
+  exclusions:
+    rules:
+      # gomega is dot-imported by convention throughout the ginkgo e2e suite.
+      - path: test/e2e/
+        linters:
+          - staticcheck
+        text: dot imports
