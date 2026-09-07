@@ -19,11 +19,11 @@ REPO     := $(notdir $(shell pwd))
 BIN      := client-go
 
 # https://github.com/appscodelabs/gengo-builder
-CODE_GENERATOR_IMAGE ?= ghcr.io/appscode/gengo:release-1.25
+CODE_GENERATOR_IMAGE ?= ghcr.io/appscode/gengo:release-1.34
 
 # This version-strategy uses git tags to set the version string
 git_branch       := $(shell git rev-parse --abbrev-ref HEAD)
-git_tag          := $(shell git describe --exact-match --abbrev=0 2>/dev/null || echo "")
+git_tag          := $(shell git describe --tags --exact-match --abbrev=0 2>/dev/null || echo "")
 commit_hash      := $(shell git rev-parse --verify HEAD)
 commit_timestamp := $(shell date --date="@$$(git show -s --format=%ct)" --utc +%FT%T)
 
@@ -55,10 +55,10 @@ BIN_PLATFORMS    := $(DOCKER_PLATFORMS)
 OS   := $(if $(GOOS),$(GOOS),$(shell go env GOOS))
 ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
 
-BASEIMAGE_PROD   ?= gcr.io/distroless/static-debian11
-BASEIMAGE_DBG    ?= debian:bullseye
+BASEIMAGE_PROD   ?= gcr.io/distroless/static-debian12
+BASEIMAGE_DBG    ?= debian:12
 
-GO_VERSION       ?= 1.20
+GO_VERSION       ?= 1.25
 BUILD_IMAGE      ?= ghcr.io/appscode/golang-dev:$(GO_VERSION)
 
 OUTBIN = bin/$(OS)_$(ARCH)/$(BIN)
@@ -114,8 +114,8 @@ clientset:
 		$(CODE_GENERATOR_IMAGE)                          \
 		deepcopy-gen                                     \
 			--go-header-file "./hack/license/go.txt"       \
-			--input-dirs "$(GO_PKG)/$(REPO)/api/v1"        \
-			--output-file-base zz_generated.deepcopy
+			--output-file zz_generated.deepcopy.go         \
+			$(GO_PKG)/$(REPO)/api/v1
 
 # Generate openapi schema
 .PHONY: openapi
@@ -132,9 +132,11 @@ openapi:
 		openapi-gen                                      \
 			--v 1 --logtostderr                          \
 			--go-header-file "./hack/license/go.txt"     \
-			--input-dirs "$(GO_PKG)/$(REPO)/api/v1"      \
-			--output-package "$(GO_PKG)/$(REPO)/api/v1"  \
-			--report-filename /tmp/violation_exceptions.list
+			--output-dir "$(DOCKER_REPO_ROOT)/api/v1"    \
+			--output-pkg "$(GO_PKG)/$(REPO)/api/v1"      \
+			--output-file "openapi_generated.go"         \
+			--report-filename /tmp/violation_exceptions.list \
+			$(GO_PKG)/$(REPO)/api/v1
 
 .PHONY: gen-crd-protos
 gen-crd-protos:
@@ -242,8 +244,6 @@ test: $(BUILD_DIRS)
 	        ./hack/test.sh $(SRC_PKGS)                          \
 	    "
 
-ADDTL_LINTERS   := goconst,gofmt,goimports,unparam
-
 .PHONY: lint
 lint: $(BUILD_DIRS)
 	@echo "running linter"
@@ -261,7 +261,7 @@ lint: $(BUILD_DIRS)
 	    --env GO111MODULE=on                                    \
 	    --env GOFLAGS="-mod=vendor"                             \
 	    $(BUILD_IMAGE)                                          \
-	    golangci-lint run --enable $(ADDTL_LINTERS) --timeout=10m --skip-files="generated.*\.go$\" --skip-dirs-use-default
+	    golangci-lint run
 
 $(BUILD_DIRS):
 	@mkdir -p $@

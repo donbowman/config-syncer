@@ -34,7 +34,7 @@ type configmapSyncer struct {
 
 var _ cache.ResourceEventHandler = &configmapSyncer{}
 
-func (s *configmapSyncer) OnAdd(obj interface{}) {
+func (s *configmapSyncer) OnAdd(obj interface{}, _ bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -89,7 +89,7 @@ type secretSyncer struct {
 
 var _ cache.ResourceEventHandler = &secretSyncer{}
 
-func (s *secretSyncer) OnAdd(obj interface{}) {
+func (s *secretSyncer) OnAdd(obj interface{}, _ bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -141,9 +141,9 @@ type nsSyncer struct {
 	*ConfigSyncer
 }
 
-var _ cache.ResourceEventHandler = &secretSyncer{}
+var _ cache.ResourceEventHandler = &nsSyncer{}
 
-func (s *nsSyncer) OnAdd(obj interface{}) {
+func (s *nsSyncer) OnAdd(obj interface{}, _ bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
